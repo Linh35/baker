@@ -81,10 +81,43 @@ pub fn parseBundle(allocator: mem.Allocator, mapped: []align(std.heap.page_size_
 /// of how baker reloads — a single instruction the kernel cannot interrupt.
 pub var current_bundle: Atomic(?*const Bundle) = .init(null);
 
-pub fn pickEncoding(accept: []const u8) Encoding {
-    if (mem.indexOf(u8, accept, "br") != null) return .brotli;
-    if (mem.indexOf(u8, accept, "gzip") != null) return .gzip;
+/// Pick the best supported encoding the client says it accepts. `value` is
+/// the bare Accept-Encoding header value (no "Accept-Encoding:" prefix).
+/// Honours `q=0` rejections — a substring search would happily serve `br`
+/// to a client that explicitly refused it.
+pub fn pickEncoding(value: []const u8) Encoding {
+    if (encodingAccepted(value, "br")) return .brotli;
+    if (encodingAccepted(value, "gzip")) return .gzip;
     return .identity;
+}
+
+fn encodingAccepted(value: []const u8, name: []const u8) bool {
+    var rest = value;
+    while (rest.len > 0) {
+        const end = mem.indexOfScalar(u8, rest, ',') orelse rest.len;
+        const token = mem.trim(u8, rest[0..end], " \t");
+        rest = if (end == rest.len) "" else rest[end + 1 ..];
+
+        const semi = mem.indexOfScalar(u8, token, ';');
+        const tname = mem.trim(u8, if (semi) |s| token[0..s] else token, " \t");
+        if (!mem.eql(u8, tname, name)) continue;
+
+        // Bare token implies q=1.
+        if (semi == null) return true;
+        const params = token[semi.? + 1 ..];
+        const q_idx = mem.indexOf(u8, params, "q=") orelse return true;
+        const q_str = mem.trim(u8, params[q_idx + 2 ..], " \t");
+        return !isQZero(q_str);
+    }
+    return false;
+}
+
+/// "0", "0.", "0.0", "0.00" — all q=0. Anything with a non-zero digit
+/// anywhere is non-zero quality.
+fn isQZero(q: []const u8) bool {
+    if (q.len == 0 or q[0] != '0') return false;
+    for (q) |c| if (c != '0' and c != '.') return false;
+    return true;
 }
 
 fn lookup(b: *const Bundle, path: []const u8, accept: []const u8) ?[]const u8 {
@@ -177,8 +210,10 @@ pub fn serveOne(stream: net.Stream, req: []const u8) bool {
     const accept_idx = mem.indexOf(u8, headers, "Accept-Encoding:") orelse
         mem.indexOf(u8, headers, "accept-encoding:");
     const accept_slice = if (accept_idx) |i| blk: {
-        const eol = mem.indexOf(u8, headers[i..], "\r\n") orelse break :blk "";
-        break :blk headers[i .. i + eol];
+        const line_end_off = mem.indexOf(u8, headers[i..], "\r\n") orelse break :blk "";
+        const line_only = headers[i .. i + line_end_off];
+        const colon = mem.indexOfScalar(u8, line_only, ':') orelse break :blk "";
+        break :blk mem.trim(u8, line_only[colon + 1 ..], " \t");
     } else "";
 
     const resp = lookup(b, path, accept_slice) orelse (b.not_found orelse not_found_resp);
@@ -258,4 +293,12 @@ test "pickEncoding prefers br over gzip over identity" {
     try std.testing.expectEqual(Encoding.gzip, pickEncoding("gzip, deflate"));
     try std.testing.expectEqual(Encoding.identity, pickEncoding(""));
     try std.testing.expectEqual(Encoding.identity, pickEncoding("deflate"));
+}
+
+test "pickEncoding honours q=0 rejection" {
+    try std.testing.expectEqual(Encoding.gzip, pickEncoding("br;q=0, gzip"));
+    try std.testing.expectEqual(Encoding.gzip, pickEncoding("br; q=0.0, gzip"));
+    try std.testing.expectEqual(Encoding.identity, pickEncoding("br;q=0, gzip;q=0"));
+    try std.testing.expectEqual(Encoding.brotli, pickEncoding("br;q=0.5, gzip;q=1"));
+    try std.testing.expectEqual(Encoding.brotli, pickEncoding("br;q=0.001"));
 }
