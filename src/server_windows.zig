@@ -38,7 +38,7 @@ fn loadBundle(allocator: mem.Allocator, path: []const u8) !*core.Bundle {
     defer file.close();
     const size_u64 = try file.getEndPos();
     const size: usize = @intCast(size_u64);
-    const buf = try std.heap.page_allocator.alignedAlloc(u8, std.heap.page_size_min, size);
+    const buf = try std.heap.page_allocator.alignedAlloc(u8, mem.Alignment.fromByteUnits(std.heap.page_size_min), size);
     errdefer std.heap.page_allocator.free(buf);
     const n = try file.readAll(buf);
     if (n != size) return error.ShortRead;

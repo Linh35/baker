@@ -9,7 +9,7 @@
 // Backend status:
 //   linux    — implemented (signalfd, SO_REUSEPORT-per-CPU, sched_setaffinity).
 //   darwin   — implemented (sigwait reload, single listener, contending accept).
-//   windows  — stub. Planned: CreateFileMapping, named-event reload, Winsock.
+//   windows  — implemented (Winsock, mtime-poll reload, single listener).
 
 const std = @import("std");
 const builtin = @import("builtin");

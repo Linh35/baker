@@ -242,7 +242,9 @@ pub fn handleConn(stream: net.Stream) void {
 }
 
 fn setReadTimeout(fd: posix.socket_t, secs: i64) void {
-    const tv = posix.timeval{ .sec = secs, .usec = 0 };
+    // posix.timeval.sec is i32 on Windows (DWORD-shaped) and i64 on Linux/Darwin.
+    // @intCast keeps the call portable; our actual values are tiny (single-digit seconds).
+    const tv = posix.timeval{ .sec = @intCast(secs), .usec = 0 };
     _ = posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.RCVTIMEO, mem.asBytes(&tv)) catch {};
 }
 
