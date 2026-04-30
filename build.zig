@@ -45,6 +45,11 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_tests = b.addRunArtifact(tests);
+    // Cross-target test builds (e.g. -Dtarget=aarch64-macos) compile fine but
+    // can't be executed on the host. Skipping the foreign run turns the build
+    // into a pure compile check, which is exactly what we want for verifying
+    // the per-OS backends still build.
+    run_tests.skip_foreign_checks = true;
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
 }
