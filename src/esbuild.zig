@@ -23,9 +23,10 @@ pub fn available(allocator: mem.Allocator) bool {
 /// Map a path's extension to an esbuild loader, or null if esbuild has no
 /// suitable loader (HTML/SVG/markdown/etc fall back to the builtin minifier).
 pub fn loaderFor(path: []const u8) ?[]const u8 {
-    if (mem.endsWith(u8, path, ".js") or mem.endsWith(u8, path, ".mjs")) return "js";
-    if (mem.endsWith(u8, path, ".css")) return "css";
-    if (mem.endsWith(u8, path, ".json")) return "json";
+    const ends = std.ascii.endsWithIgnoreCase;
+    if (ends(path, ".js") or ends(path, ".mjs")) return "js";
+    if (ends(path, ".css")) return "css";
+    if (ends(path, ".json")) return "json";
     return null;
 }
 

@@ -28,23 +28,30 @@ const COMPRESSIBLE = [_][]const u8{
     ".md",   ".svg", ".txt", ".xml",
 };
 
+// Extension matching is case-insensitive: macOS's default filesystem and
+// Windows preserve case but match it loosely, so a file called STYLE.CSS
+// must still get text/css and the compression pass.
+fn endsWithExt(path: []const u8, ext: []const u8) bool {
+    return std.ascii.endsWithIgnoreCase(path, ext);
+}
+
 fn isCompressible(path: []const u8) bool {
-    for (COMPRESSIBLE) |ext| if (mem.endsWith(u8, path, ext)) return true;
+    for (COMPRESSIBLE) |ext| if (endsWithExt(path, ext)) return true;
     return false;
 }
 
 fn mimeFor(path: []const u8) []const u8 {
-    if (mem.endsWith(u8, path, ".html") or mem.endsWith(u8, path, ".htm")) return "text/html; charset=utf-8";
-    if (mem.endsWith(u8, path, ".css")) return "text/css; charset=utf-8";
-    if (mem.endsWith(u8, path, ".js") or mem.endsWith(u8, path, ".mjs")) return "text/javascript; charset=utf-8";
-    if (mem.endsWith(u8, path, ".md")) return "text/markdown; charset=utf-8";
-    if (mem.endsWith(u8, path, ".json")) return "application/json; charset=utf-8";
-    if (mem.endsWith(u8, path, ".svg")) return "image/svg+xml";
-    if (mem.endsWith(u8, path, ".png")) return "image/png";
-    if (mem.endsWith(u8, path, ".jpg") or mem.endsWith(u8, path, ".jpeg")) return "image/jpeg";
-    if (mem.endsWith(u8, path, ".ico")) return "image/x-icon";
-    if (mem.endsWith(u8, path, ".woff2")) return "font/woff2";
-    if (mem.endsWith(u8, path, ".txt")) return "text/plain; charset=utf-8";
+    if (endsWithExt(path, ".html") or endsWithExt(path, ".htm")) return "text/html; charset=utf-8";
+    if (endsWithExt(path, ".css")) return "text/css; charset=utf-8";
+    if (endsWithExt(path, ".js") or endsWithExt(path, ".mjs")) return "text/javascript; charset=utf-8";
+    if (endsWithExt(path, ".md")) return "text/markdown; charset=utf-8";
+    if (endsWithExt(path, ".json")) return "application/json; charset=utf-8";
+    if (endsWithExt(path, ".svg")) return "image/svg+xml";
+    if (endsWithExt(path, ".png")) return "image/png";
+    if (endsWithExt(path, ".jpg") or endsWithExt(path, ".jpeg")) return "image/jpeg";
+    if (endsWithExt(path, ".ico")) return "image/x-icon";
+    if (endsWithExt(path, ".woff2")) return "font/woff2";
+    if (endsWithExt(path, ".txt")) return "text/plain; charset=utf-8";
     return "application/octet-stream";
 }
 

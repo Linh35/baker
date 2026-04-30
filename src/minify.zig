@@ -130,9 +130,10 @@ pub fn js(allocator: mem.Allocator, input: []const u8) ![]u8 {
 }
 
 pub fn forPath(allocator: mem.Allocator, path: []const u8, input: []const u8) !?[]u8 {
-    if (mem.endsWith(u8, path, ".html") or mem.endsWith(u8, path, ".htm")) return try html(allocator, input);
-    if (mem.endsWith(u8, path, ".css")) return try css(allocator, input);
-    if (mem.endsWith(u8, path, ".js") or mem.endsWith(u8, path, ".mjs")) return try js(allocator, input);
+    const ends = std.ascii.endsWithIgnoreCase;
+    if (ends(path, ".html") or ends(path, ".htm")) return try html(allocator, input);
+    if (ends(path, ".css")) return try css(allocator, input);
+    if (ends(path, ".js") or ends(path, ".mjs")) return try js(allocator, input);
     return null;
 }
 
