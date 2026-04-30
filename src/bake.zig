@@ -438,7 +438,14 @@ pub fn run(allocator: mem.Allocator, args: []const []const u8) !void {
             bytes_out_br += body_for_id.len;
         }
 
-        const url = try std.fmt.allocPrint(allocator, "/{s}", .{w.path});
+        // Normalize path separators for URL formation. The directory walker
+        // hands back '\' on Windows, which would otherwise leak into the URL
+        // (`/blog\post.html`) and never match an HTTP request. Filesystem
+        // ops above keep the raw `w.path`.
+        const url_path = try allocator.dupe(u8, w.path);
+        mem.replaceScalar(u8, url_path, '\\', '/');
+
+        const url = try std.fmt.allocPrint(allocator, "/{s}", .{url_path});
         try entries.append(allocator, .{
             .url_path = url,
             .identity = id_resp,
@@ -449,13 +456,13 @@ pub fn run(allocator: mem.Allocator, args: []const []const u8) !void {
         // Implicit-index aliases. Match `index.html` at the root or any
         // directory boundary — never as a partial-name suffix (so `myindex.html`
         // does not mint a `/my` alias).
-        const is_index = mem.eql(u8, w.path, "index.html") or
-            mem.endsWith(u8, w.path, "/index.html");
+        const is_index = mem.eql(u8, url_path, "index.html") or
+            mem.endsWith(u8, url_path, "/index.html");
         if (is_index) {
-            const alias_url = if (w.path.len == "index.html".len)
+            const alias_url = if (url_path.len == "index.html".len)
                 try allocator.dupe(u8, "/")
             else blk: {
-                const dir_only = w.path[0 .. w.path.len - "index.html".len];
+                const dir_only = url_path[0 .. url_path.len - "index.html".len];
                 break :blk try std.fmt.allocPrint(allocator, "/{s}", .{dir_only});
             };
             // Aliases share the same response bytes — duplicated entry, no extra storage
