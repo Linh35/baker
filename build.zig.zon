@@ -1,0 +1,15 @@
+.{
+    .name = .baker,
+    .version = "0.0.1",
+    .fingerprint = 0x4449e86532075486,
+    .minimum_zig_version = "0.15.2",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "NOTICE",
+        "README.md",
+    },
+    .dependencies = .{},
+}

@@ -1,0 +1,9 @@
+zig-out/
+.zig-cache/
+*.o
+*.so
+*.a
+
+CLAUDE.md
+.claude/
+.claude.json
