@@ -433,8 +433,12 @@ pub fn run(allocator: mem.Allocator, args: *std.process.ArgIterator) !void {
             .brotli = br_resp,
         });
 
-        // Implicit-index aliases.
-        if (mem.endsWith(u8, w.path, "index.html")) {
+        // Implicit-index aliases. Match `index.html` at the root or any
+        // directory boundary — never as a partial-name suffix (so `myindex.html`
+        // does not mint a `/my` alias).
+        const is_index = mem.eql(u8, w.path, "index.html") or
+            mem.endsWith(u8, w.path, "/index.html");
+        if (is_index) {
             const alias_url = if (w.path.len == "index.html".len)
                 try allocator.dupe(u8, "/")
             else blk: {
