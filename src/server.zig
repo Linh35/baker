@@ -8,7 +8,7 @@
 //
 // Backend status:
 //   linux    — implemented (signalfd, SO_REUSEPORT-per-CPU, sched_setaffinity).
-//   darwin   — stub. Planned: kqueue reload, single-listener thread pool.
+//   darwin   — implemented (sigwait reload, single listener, contending accept).
 //   windows  — stub. Planned: CreateFileMapping, named-event reload, Winsock.
 
 const std = @import("std");
@@ -23,6 +23,7 @@ const backend = switch (builtin.os.tag) {
 };
 
 pub const RunOptions = core.RunOptions;
+pub const Encoding = core.Encoding;
 pub const run = backend.run;
 pub const runFromConfig = backend.runFromConfig;
 

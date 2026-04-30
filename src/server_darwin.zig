@@ -69,8 +69,9 @@ fn workerLoop(ctx: WorkerCtx) void {
 fn blockSigHup() void {
     var set: c.sigset_t = undefined;
     _ = c.sigemptyset(&set);
-    _ = c.sigaddset(&set, @intFromEnum(posix.SIG.HUP));
-    _ = c.pthread_sigmask(c.SIG.BLOCK, &set, null);
+    _ = c.sigaddset(&set, posix.SIG.HUP);
+    var old: c.sigset_t = undefined;
+    _ = c.pthread_sigmask(c.SIG.BLOCK, &set, &old);
 }
 
 fn ignoreSigpipe() void {
@@ -87,7 +88,7 @@ const ReloadCtx = struct { bundle_path: []const u8, allocator: mem.Allocator };
 fn reloadLoop(ctx: ReloadCtx) void {
     var set: c.sigset_t = undefined;
     _ = c.sigemptyset(&set);
-    _ = c.sigaddset(&set, @intFromEnum(posix.SIG.HUP));
+    _ = c.sigaddset(&set, posix.SIG.HUP);
     while (true) {
         var sig: c_int = undefined;
         const rc = c.sigwait(&set, &sig);
