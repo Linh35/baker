@@ -50,26 +50,34 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var args = try std.process.argsWithAllocator(allocator);
-    _ = args.next(); // skip program name
-
-    const sub = args.next() orelse {
+    // Collect argv into a slice once, so subcommands can scan it more than
+    // once. (`baker run` needs both bake-time *and* runtime to honour the
+    // same --config flag — the previous iterator-based version dropped the
+    // second pass on the floor.)
+    var raw = try std.process.argsWithAllocator(allocator);
+    defer raw.deinit();
+    var argv: std.ArrayList([]const u8) = .{};
+    while (raw.next()) |a| try argv.append(allocator, a);
+    if (argv.items.len < 2) {
         try printHelp();
         std.process.exit(2);
-    };
+    }
+    const sub = argv.items[1];
+    const rest = argv.items[2..];
 
     if (eq(sub, "bake")) {
-        try bake_mod.run(allocator, &args);
+        try bake_mod.run(allocator, rest);
     } else if (eq(sub, "serve")) {
-        const cfg_path = try parseConfigFlag(&args);
+        const cfg_path = try parseConfigFlag(rest);
         try server.runFromConfig(cfg_path);
     } else if (eq(sub, "run")) {
-        // bake first; if it fails, don't start the server.
-        try bake_mod.run(allocator, &args);
-        const cfg_path = try parseConfigFlag(&args);
+        // bake first; if it fails, don't start the server. Both halves see
+        // the same args slice, so a single --config governs both.
+        try bake_mod.run(allocator, rest);
+        const cfg_path = configFromArgs(rest);
         try server.runFromConfig(cfg_path);
     } else if (eq(sub, "init")) {
-        const dir = args.next() orelse ".";
+        const dir = if (rest.len > 0) rest[0] else ".";
         try bake_mod.doInit(dir);
     } else if (eq(sub, "help") or eq(sub, "--help") or eq(sub, "-h")) {
         try printHelp();
@@ -84,11 +92,28 @@ fn eq(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
 
-fn parseConfigFlag(args: *std.process.ArgIterator) !?[]const u8 {
-    while (args.next()) |arg| {
-        if (eq(arg, "--config")) return args.next() orelse return error.MissingConfigPath;
-        std.debug.print("baker: unknown flag '{s}'\n", .{arg});
+/// `serve` mode: only --config is recognised; anything else is an error.
+fn parseConfigFlag(args: []const []const u8) !?[]const u8 {
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        if (eq(args[i], "--config")) {
+            i += 1;
+            if (i >= args.len) return error.MissingConfigPath;
+            return args[i];
+        }
+        std.debug.print("baker: unknown flag '{s}'\n", .{args[i]});
         return error.UnknownFlag;
+    }
+    return null;
+}
+
+/// `run` mode: bake has already consumed the args; we just want the
+/// --config value (if any) so the server uses the same file. Unknown flags
+/// here would have been rejected by bake; we silently skip everything else.
+fn configFromArgs(args: []const []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        if (eq(args[i], "--config") and i + 1 < args.len) return args[i + 1];
     }
     return null;
 }

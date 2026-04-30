@@ -237,10 +237,11 @@ fn autodetectSiteDir() ?[]const u8 {
     return null;
 }
 
-/// Run the `baker bake` subcommand. `args` is positioned past `argv[0]` and
-/// the subcommand name — we just consume the remaining flags. The caller owns
-/// the allocator (typically an arena rooted in main.zig).
-pub fn run(allocator: mem.Allocator, args: *std.process.ArgIterator) !void {
+/// Run the `baker bake` subcommand. `args` is the slice of argv tokens past
+/// the subcommand name. Taking a slice (not an iterator) lets `baker run`
+/// hand the same args to both bake and the runtime, so a single `--config`
+/// flag governs both halves of the workflow.
+pub fn run(allocator: mem.Allocator, args: []const []const u8) !void {
     var cfg: config_mod.Config = .{};
     var loaded_config_path: ?[]const u8 = null;
     var in_dir: ?[]const u8 = null;
@@ -255,15 +256,23 @@ pub fn run(allocator: mem.Allocator, args: *std.process.ArgIterator) !void {
     }
 
     // 2. Parse remaining CLI args. Flags override config-file values.
-    while (args.next()) |arg| {
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
         if (mem.eql(u8, arg, "--config")) {
-            const cfg_path = args.next() orelse return error.MissingConfigPath;
+            i += 1;
+            if (i >= args.len) return error.MissingConfigPath;
+            const cfg_path = args[i];
             cfg = try config_mod.loadFromFile(allocator, cfg_path);
             loaded_config_path = cfg_path;
         } else if (mem.eql(u8, arg, "--in")) {
-            in_dir = args.next() orelse return error.MissingIn;
+            i += 1;
+            if (i >= args.len) return error.MissingIn;
+            in_dir = args[i];
         } else if (mem.eql(u8, arg, "--out")) {
-            out_path = args.next() orelse return error.MissingOut;
+            i += 1;
+            if (i >= args.len) return error.MissingOut;
+            out_path = args[i];
         } else if (mem.eql(u8, arg, "--minify")) {
             cfg.compress.obfuscate = true;
         } else if (mem.eql(u8, arg, "--no-minify")) {
@@ -280,13 +289,17 @@ pub fn run(allocator: mem.Allocator, args: *std.process.ArgIterator) !void {
             cfg.compress.gzip = false;
             cfg.compress.brotli = false;
         } else if (mem.eql(u8, arg, "--min-size")) {
-            const v = args.next() orelse return error.MissingMinSize;
+            i += 1;
+            if (i >= args.len) return error.MissingMinSize;
+            const v = args[i];
             cfg.compress.min_size = std.fmt.parseInt(u32, v, 10) catch {
                 std.debug.print("baker bake: --min-size expects a non-negative integer, got '{s}'\n", .{v});
                 return error.InvalidMinSize;
             };
         } else if (mem.eql(u8, arg, "--minifier")) {
-            const v = args.next() orelse return error.MissingMinifier;
+            i += 1;
+            if (i >= args.len) return error.MissingMinifier;
+            const v = args[i];
             if (mem.eql(u8, v, "auto")) {
                 cfg.compress.minifier = .auto;
             } else if (mem.eql(u8, v, "builtin")) {
