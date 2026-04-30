@@ -52,4 +52,31 @@ pub fn build(b: *std.Build) void {
     run_tests.skip_foreign_checks = true;
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
+
+    // ---- runtime-only cross-target check ----
+    // The full `baker` exe links libbrotli + zlib for the bake path, which
+    // isn't available when cross-compiling to a different OS without that
+    // sysroot. The runtime path (root.zig → server.zig → server_<os>.zig)
+    // doesn't need either, so we compile it as a standalone object for any
+    // target the user names. Catches per-OS backend regressions on a Linux
+    // dev box.
+    //
+    //   zig build check-runtime -Dtarget=aarch64-macos
+    //   zig build check-runtime -Dtarget=x86_64-windows
+    const baker_mod = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const check_exe = b.addExecutable(.{
+        .name = "baker-runtime-check",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/check_runtime.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "baker", .module = baker_mod }},
+        }),
+    });
+    const check_step = b.step("check-runtime", "Type-check the runtime for the selected target (no bake-time deps)");
+    check_step.dependOn(&check_exe.step);
 }
